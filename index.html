@@ -1,55 +1,109 @@
-
 <!doctype html>
 <html>
 <head>
-<title>Lab 3 Assignment</title>
-<style>
-
-  /* CSS goes here 
-  
-    E.g. table {
+  <title>Interactive PSI Visualization</title>
+  <!-- Bootstrap CSS for styling -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* Custom CSS */
+    body {
+      padding: 20px;
+      font-family: Arial, sans-serif;
     }
-  
-  */
-
-</style>
+    h2 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    h4 {
+      color: #666;
+      font-weight: normal;
+      margin-bottom: 20px;
+    }
+    .refresh-btn {
+      margin-bottom: 20px;
+    }
+    .table {
+      margin-top: 20px;
+    }
+    .table th, .table td {
+      text-align: center;
+    }
+    .table-striped tbody tr:nth-of-type(odd) {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    .psi-low { background-color: #d4edda; } /* Green for low PSI */
+    .psi-moderate { background-color: #fff3cd; } /* Yellow for moderate PSI */
+    .psi-high { background-color: #f8d7da; } /* Red for high PSI */
+  </style>
 </head>
 <body>
 
-<h2>Singapore PSI table</h2>
-<h4 id="timestring"></h4>
-<table id="PSItable">
-    <tr>
-        <th>Metric</th>
-        <th>Central</th>
-        <th>West</th>
-        <th>East</th>
-        <th>North</th>
-        <th>South</th>
-    </tr>
-</table>
+  <div class="container">
+    <h2>Singapore PSI Visualization</h2>
+    <h4 id="timestring">Last Updated: Loading...</h4>
+    <button class="btn btn-primary refresh-btn" onclick="fetchPSIData()">Refresh Data</button>
+    <table class="table table-striped" id="PSItable">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Central</th>
+          <th>West</th>
+          <th>East</th>
+          <th>North</th>
+          <th>South</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Data will be populated here by JavaScript -->
+      </tbody>
+    </table>
+  </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script>
+  <!-- D3.js library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    // Function to fetch and display PSI data
+    function fetchPSIData() {
+      fetch('https://api.data.gov.sg/v1/environment/psi')
+        .then(response => response.json())
+        .then(data => {
+          const timestamp = data.items[0].update_timestamp;
+          const readings = data.items[0].readings;
 
-fetch('https://api.data.gov.sg/v1/environment/psi')
-  .then(response => response.json())
-  .then(data => {
+          // Format the timestamp
+          const formattedTimestamp = new Date(timestamp).toLocaleString();
+          d3.select("#timestring").text(`Last Updated: ${formattedTimestamp}`);
 
-    /* JS code goes here.
-    
-    */
-  
-    let timestamp = data.items[0].update_timestamp;
-    let readings = data.items[0].readings;
-    console.log(timestamp);
-    console.log(readings);
-    
-    d3.select("#timestring").text(timestamp);
-  
-  });
+          // Clear existing table rows
+          const tableBody = d3.select("#PSItable tbody");
+          tableBody.html("");
 
+          // Loop through each reading and add rows to the table
+          Object.keys(readings).forEach(metric => {
+            const row = tableBody.append("tr");
+            row.append("td").text(metric);
 
-</script>
+            ["central", "west", "east", "north", "south"].forEach(region => {
+              const value = readings[metric][region];
+              const cell = row.append("td").text(value);
+
+              // Add color coding based on PSI value
+              if (metric === "psi_twenty_four_hourly") {
+                if (value >= 100) cell.classed("psi-high", true);
+                else if (value >= 50) cell.classed("psi-moderate", true);
+                else cell.classed("psi-low", true);
+              }
+            });
+          });
+        })
+        .catch(error => {
+          console.error("Error fetching PSI data:", error);
+          d3.select("#timestring").text("Failed to fetch data. Please try again.");
+        });
+    }
+
+    // Fetch data on page load
+    fetchPSIData();
+  </script>
 </body>
 </html>
