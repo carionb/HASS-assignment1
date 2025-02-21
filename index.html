@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Lab 3 Assignment: Singapore PSI Visualization</title>
+    <title>Singapore PSI Visualization</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -15,15 +15,37 @@
             min-height: 100vh; 
         }
         #map { height: 400px; }
-        .info { 
-            padding: 6px 8px; 
-            background: rgba(255,255,255,0.8); 
-            box-shadow: 0 0 15px rgba(0,0,0,0.2); 
-            border-radius: 5px; 
+        .container { 
+            padding: 20px; 
+            text-align: center; 
         }
-        .info h4 { 
-            margin: 0 0 5px; 
-            color: #777; 
+        .logo-container { 
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            width: 80px; 
+        }
+        .logo { 
+            height: 100%; 
+            width: 100%; 
+            object-fit: contain; 
+        }
+        h2 {
+            color: #2e7d32; 
+        }
+        table {
+            margin-top: 20px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50; 
+            color: white;
         }
         .footer { 
             position: absolute; 
@@ -31,61 +53,18 @@
             bottom: 0; 
             text-align: center; 
             padding: 10px 0; 
-            background-color: #f4f4f4; /* Light gray to contrast with the white background */
-        }
-        .logo-container { 
-            position: absolute; 
-            top: 10px; 
-            left: 10px; 
-        }
-        .logo { 
-            height: 50px; 
-        }
-        h2 {
-            color: #2e7d32; /* Green color symbolizing eco-friendliness */
-        }
-        table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        th {
-            background-color: #4CAF50; /* Green, to keep with the environmental theme */
-            color: white;
-        }
-        th, td {
-            padding: 8px;
-            text-align: center;
-            border-bottom: 1px solid #ddd;
-        }
-        tr:hover {
-            background-color: #f5f5f5; /* Subtle hover effect for rows */
-        }
-        /* Tooltip styling */
-        .tooltip {
-            position: absolute;
-            text-align: center;
-            padding: 6px;
-            font-size: 14px;
-            background: lightgreen;
-            border: 1px solid green;
-            border-radius: 4px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
+            background-color: #f4f4f4;
         }
     </style>
 </head>
 <body>
     <div class="logo-container">
-        <img src="https://www.sutd.edu.sg/epd/wp-content/uploads/sites/6/2024/12/Lee-Kuan-Yew-Centre-for-Innovative-Cities-LKYCIC.png" alt="College Logo" class="logo">
+        <img src="https://lkycic.sutd.edu.sg/wp-content/uploads/2023/03/lkycic-logo-web-2022-fc-full-1x.png" alt="College Logo" class="logo">
     </div>
     <div class="container mt-4">
         <h2>Singapore PSI Visualization</h2>
         <div id="map"></div>
-        <div class="info mt-3">
-            <h4 id="timestring">Loading...</h4>
-        </div>
-        <table id="PSItable" class="table table-hover mt-3">
+        <table id="PSItable" class="table table-hover">
             <thead class="table-dark">
                 <tr>
                     <th>Metric</th>
@@ -104,14 +83,9 @@
         Baorong Li - 1009456
     </div>
 
-    <div class="tooltip" id="tooltip"></div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
     <script>
-        var tooltip = document.getElementById('tooltip');
-
-        // Initialize map
         var map = L.map('map').setView([1.3521, 103.8198], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 18,
@@ -121,7 +95,11 @@
         fetch('https://raw.githubusercontent.com/carionb/HASS-assignment1/main/sgmap.json')
             .then(response => response.json())
             .then(geoJson => {
-                L.geoJSON(geoJson).addTo(map);
+                L.geoJSON(geoJson, {
+                    onEachFeature: function (feature, layer) {
+                        layer.bindPopup(feature.properties.name); // Assuming 'name' is a property in your GeoJSON
+                    }
+                }).addTo(map);
             });
 
         fetch('https://api.data.gov.sg/v1/environment/psi')
@@ -129,5 +107,18 @@
             .then(data => {
                 const timestamp = data.items[0].update_timestamp;
                 const readings = data.items[0].readings;
-
-                d3.select("#timestring").text("Last updated: " + new
+                
+                d3.select("#timestring").text("Last updated: " + new Date(timestamp).toLocaleString());
+                
+                let table = d3.select("#PSItable tbody");
+                Object.keys(readings).forEach(key => {
+                    let row = table.append("tr");
+                    row.append("td").text(key.replace(/_/g, ' '));
+                    Object.entries(readings[key]).forEach(([region, value]) => {
+                        row.append("td").text(value);
+                    });
+                });
+            });
+    </script>
+</body>
+</html>
