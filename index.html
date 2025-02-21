@@ -7,25 +7,24 @@
     <style>
         body { 
             font-family: Arial, sans-serif; 
-            background-color: #f4f4f4; /* Eco-friendly light background */
+            background-color: #f4f4f4;
             margin: 0;
             padding: 0;
             position: relative;
             min-height: 100vh;
         }
-        .container {
-            text-align: center; /* Centering the content */
-            padding: 20px;
-            margin-top: 30px; /* Space between header and content */
-        }
         .logo-container {
-            text-align: center; /* Centering the logo */
-            padding: 20px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
         }
         .logo {
-            width: 150px; /* Increased width */
-            height: auto;
-            object-fit: contain;
+            height: 50px;
+        }
+        .container {
+            padding: 20px;
+            margin-top: 60px;
+            text-align: center;
         }
         #chart {
             width: 100%;
@@ -44,6 +43,7 @@
         th {
             background-color: #4CAF50;
             color: white;
+            cursor: pointer;
         }
         .footer {
             position: absolute;
@@ -52,18 +52,6 @@
             text-align: center;
             padding: 10px 0;
             background-color: #f4f4f4;
-        }
-        .tooltip {
-            position: absolute;
-            text-align: center;
-            width: auto;
-            padding: 6px;
-            font-size: 14px;
-            background: white;
-            border: 1px solid #ddd;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
         }
     </style>
 </head>
@@ -77,12 +65,12 @@
         <table id="PSItable" class="table table-hover">
             <thead>
                 <tr>
-                    <th>Metric</th>
-                    <th>Central</th>
-                    <th>West</th>
-                    <th>East</th>
-                    <th>North</th>
-                    <th>South</th>
+                    <th onclick="sortTable(0)">Metric</th>
+                    <th onclick="sortTable(1)">Central</th>
+                    <th onclick="sortTable(2)">West</th>
+                    <th onclick="sortTable(3)">East</th>
+                    <th onclick="sortTable(4)">North</th>
+                    <th onclick="sortTable(5)">South</th>
                 </tr>
             </thead>
             <tbody>
@@ -92,33 +80,28 @@
     <div class="footer">
         Baorong Li - 1009456
     </div>
-    <div class="tooltip" id="tooltip" style="opacity: 0;"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
         // Function to fetch and render data
-        function fetchData() {
-            fetch('https://api.data.gov.sg/v1/environment/psi')
-            .then(response => response.json())
-            .then(data => {
-                const readings = data.items.map(item => ({
-                    time: new Date(item.timestamp),
-                    central: item.readings.psi_twenty_four_hourly.central,
-                    west: item.readings.psi_twenty_four_hourly.west,
-                    east: item.readings.psi_twenty_four_hourly.east,
-                    north: item.readings.psi_twenty_four_hourly.north,
-                    south: item.readings.psi_twenty_four_hourly.south
-                }));
-                drawChart(readings);
-                populateTable(readings);
-            })
-            .catch(error => {
-                console.error('Error fetching data:', error);
-            });
+        async function fetchData() {
+            const response = await axios.get('https://api.data.gov.sg/v1/environment/psi');
+            const data = response.data.items.map(item => ({
+                time: new Date(item.timestamp),
+                central: item.readings.psi_twenty_four_hourly.central,
+                west: item.readings.psi_twenty_four_hourly.west,
+                east: item.readings.psi_twenty_four_hourly.east,
+                north: item.readings.psi_twenty_four_hourly.north,
+                south: item.readings.psi_twenty_four_hourly.south
+            }));
+            drawChart(data);
+            populateTable(data);
         }
 
-        // Function to draw the chart
+        // Draw the PSI trend chart
         function drawChart(data) {
+            // Setup the SVG and scales
             const svg = d3.select("#chart").html("").append("svg")
                 .attr("width", '100%')
                 .attr("height", 400)
@@ -140,19 +123,23 @@
             svg.append("g")
                 .call(d3.axisLeft(y));
 
-            const line = d3.line()
-                .x(d => x(d.time))
-                .y(d => y(d.central)); // Example for central
+            // Draw the line for each region
+            const regions = ['central', 'west', 'east', 'north', 'south'];
+            regions.forEach(region => {
+                const line = d3.line()
+                    .x(d => x(d.time))
+                    .y(d => y(d[region]));
 
-            svg.append("path")
-                .datum(data)
-                .attr("fill", "none")
-                .attr("stroke", "green")
-                .attr("stroke-width", 2)
-                .attr("d", line);
+                svg.append("path")
+                    .datum(data)
+                    .attr("fill", "none")
+                    .attr("stroke", (d, i) => ['#4CAF50', '#FFC107', '#2196F3', '#FF5722', '#9C27B0'][regions.indexOf(region)]) // Different color for each region
+                    .attr("stroke-width", 2)
+                    .attr("d", line);
+            });
         }
 
-        // Function to populate the table
+        // Populate the table with data
         function populateTable(data) {
             const tbody = d3.select("#PSItable tbody").html("");
             data.forEach(reading => {
@@ -166,8 +153,45 @@
             });
         }
 
-        fetchData();  // Initial fetch of the data
+        fetchData();  // Fetch the initial data
 
+        // Sort table function
+        function sortTable(n) {
+            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            table = document.getElementById("PSItable");
+            switching = true;
+            dir = "asc";
+            while (switching) {
+                switching = false;
+                rows = table.getElementsByTagName("TR");
+                for (i = 1; i < (rows.length - 1); i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[n];
+                    y = rows[i + 1].getElementsByTagName("TD")[n];
+                    if (dir == "asc") {
+                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    } else if (dir == "desc") {
+                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    }
+                }
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    switchcount++;
+                } else {
+                    if (switchcount == 0 && dir == "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
     </script>
 </body>
 </html>
