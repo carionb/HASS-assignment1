@@ -8,20 +8,31 @@
     <script src="https://d3js.org/topojson.v3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; background-color: #e0f7fa; padding: 20px; }
+        body { font-family: Arial, sans-serif; background-color: #e8f5e9; padding: 20px; }
         .container { background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         h1 { color: #2e7d32; text-align: center; margin-bottom: 20px; }
-        #map { width: 100%; height: 400px; }
+        #map { width: 100%; height: 400px; margin-bottom: 30px; }
         .region { stroke: #fff; stroke-width: 1px; }
-        #chart { width: 100%; height: 300px; }
+        #chart { width: 100%; height: 300px; margin-bottom: 30px; }
         .line { fill: none; stroke-width: 2px; }
         .axis { font-size: 12px; }
-        .tooltip { position: absolute; background-color: white; padding: 5px; border: 1px solid #ddd; }
+        .tooltip { position: absolute; background-color: white; padding: 5px; border: 1px solid #ddd; border-radius: 5px; pointer-events: none; }
         #controls { margin-bottom: 20px; }
         .footer { text-align: center; margin-top: 20px; font-size: 14px; color: #666; }
+        #data-table { margin-top: 30px; }
+        #data-table th { background-color: #4caf50; color: white; cursor: pointer; }
+        #data-table td { transition: background-color 0.3s ease; }
+        #data-table tr:hover td { background-color: #e8f5e9; }
+        th.sort-asc::after { content: " ▲"; }
+        th.sort-desc::after { content: " ▼"; }
+        .logo-container { position: absolute; top: 20px; left: 20px; }
+        .college-logo { width: 100px; height: auto; }
     </style>
 </head>
 <body>
+    <div class="logo-container">
+        <img src="https://lkycic.sutd.edu.sg/wp-content/uploads/2023/03/lkycic-logo-web-2022-fc-full-1x.png" alt="College Logo" class="college-logo">
+    </div>
     <div class="container">
         <h1>Singapore PSI Visualization</h1>
         <div id="controls" class="row">
@@ -58,31 +69,27 @@
     </div>
 
     <script>
-        const width = 600;
+        const width = 800;
         const height = 400;
-        const margin = {top: 20, right: 20, bottom: 30, left: 50};
+        const margin = {top: 20, right: 30, bottom: 30, left: 60};
         let psiData = [];
         let selectedMetric = "psi_twenty_four_hourly";
         let selectedRegion = "all";
         let selectedDate = new Date().toISOString().split('T')[0];
 
-        // MAP SVG
         const mapSvg = d3.select("#map")
             .append("svg")
             .attr("width", width)
             .attr("height", height);
 
-        // CHART SVG
         const chartSvg = d3.select("#chart")
             .append("svg")
             .attr("width", width)
             .attr("height", height);
 
-        // COLORSCALE
-        const colorScale = d3.scaleSequential(d3.interpolateReds)
+        const colorScale = d3.scaleSequential(d3.interpolateGreens)
             .domain([0, 100]);
 
-        // SG MAP
         d3.json("https://raw.githubusercontent.com/your-github-username/singapore-map/main/singapore.json").then(data => {
             const singapore = topojson.feature(data, data.objects.singapore);
             
@@ -98,38 +105,30 @@
                 .attr("fill", "#ccc");
         });
 
-        // UPDATE
         function updateVisualization() {
-            // PSI DATA
             d3.json(`https://api.data.gov.sg/v1/environment/psi?date=${selectedDate}`).then(data => {
                 psiData = data.items;
-                
-                // MAP
                 updateMap();
-
-                // LINE CHART
                 updateLineChart();
-
-                // DATA TABLE
                 updateDataTable();
             });
         }
 
-        // MAP
         function updateMap() {
             const latestData = psiData[psiData.length - 1].readings[selectedMetric];
 
             mapSvg.selectAll(".region")
                 .transition()
-                .duration(500)
+                .duration(1000)
                 .attr("fill", d => {
                     const regionName = d.properties.name.toLowerCase();
                     return colorScale(latestData[regionName]);
                 });
         }
 
-        // LINE CHART
         function updateLineChart() {
+            chartSvg.selectAll("*").remove();
+
             const chartData = psiData.map(item => ({
                 timestamp: new Date(item.timestamp),
                 value: item.readings[selectedMetric][selectedRegion === "all" ? "national" : selectedRegion]
@@ -137,7 +136,7 @@
 
             const x = d3.scaleTime()
                 .range([margin.left, width - margin.right])
-                .domain(d3.extent(chartData, d => d.timestamp));
+                .domain([d3.timeDay.floor(chartData[0].timestamp), d3.timeDay.ceil(chartData[chartData.length - 1].timestamp)]);
 
             const y = d3.scaleLinear()
                 .range([height - margin.bottom, margin.top])
@@ -147,9 +146,15 @@
                 .x(d => x(d.timestamp))
                 .y(d => y(d.value));
 
-            chartSvg.selectAll("*").remove();
+            chartSvg.append("g")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(x).ticks(24).tickFormat(d3.timeFormat("%H:00")));
 
-            chartSvg.append("path")
+            chartSvg.append("g")
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(y));
+
+            const path = chartSvg.append("path")
                 .datum(chartData)
                 .attr("class", "line")
                 .attr("d", line)
@@ -157,15 +162,15 @@
                 .attr("stroke", "#2e7d32")
                 .attr("stroke-width", 2);
 
-            chartSvg.append("g")
-                .attr("transform", `translate(0,${height - margin.bottom})`)
-                .call(d3.axisBottom(x));
+            const totalLength = path.node().getTotalLength();
+            path
+                .attr("stroke-dasharray", totalLength + " " + totalLength)
+                .attr("stroke-dashoffset", totalLength)
+                .transition()
+                .duration(2000)
+                .ease(d3.easeLinear)
+                .attr("stroke-dashoffset", 0);
 
-            chartSvg.append("g")
-                .attr("transform", `translate(${margin.left},0)`)
-                .call(d3.axisLeft(y));
-
-            // MORE INTERACTIVE
             const tooltip = d3.select("body").append("div")
                 .attr("class", "tooltip")
                 .style("opacity", 0);
@@ -181,42 +186,71 @@
                         .duration(200)
                         .style("opacity", .9);
                     tooltip.html(`Time: ${d.timestamp.toLocaleString()}<br/>Value: ${d.value}`)
-                        .style("left", (event.pageX) + "px")
+                        .style("left", (event.pageX + 10) + "px")
                         .style("top", (event.pageY - 28) + "px");
                 })
-                .on("mouseout", (d) => {
+                .on("mouseout", () => {
                     tooltip.transition()
                         .duration(500)
                         .style("opacity", 0);
                 });
         }
 
-        // DATA TABLE
         function updateDataTable() {
-            const latestData = psiData[psiData.length - 1].readings[selectedMetric];
-            const tableData = Object.entries(latestData).map(([region, value]) => ({region, value}));
+            const tableData = psiData.map(item => ({
+                timestamp: new Date(item.timestamp).toLocaleString(),
+                ...Object.entries(item.readings[selectedMetric]).reduce((acc, [key, value]) => {
+                    acc[key] = value;
+                    return acc;
+                }, {})
+            }));
 
             const table = d3.select("#data-table")
                 .html("")
                 .append("table")
                 .attr("class", "table table-striped");
 
-            table.append("thead").append("tr")
-                .selectAll("th")
-                .data(["Region", "Value"])
+            const headers = ["Timestamp", "Central", "West", "East", "North", "South", "National"];
+
+            const thead = table.append("thead").append("tr");
+            thead.selectAll("th")
+                .data(headers)
                 .enter()
                 .append("th")
-                .text(d => d);
+                .text(d => d)
+                .on("click", function(event, d) {
+                    const isAscending = this.classList.contains("sort-asc");
+                    thead.selectAll("th").classed("sort-asc", false).classed("sort-desc", false);
+                    this.classList.add(isAscending ? "sort-desc" : "sort-asc");
+                    
+                    tableData.sort((a, b) => {
+                        return isAscending ? b[d.toLowerCase()] - a[d.toLowerCase()] : a[d.toLowerCase()] - b[d.toLowerCase()];
+                    });
+                    updateRows();
+                });
 
-            table.append("tbody")
-                .selectAll("tr")
-                .data(tableData)
-                .enter()
-                .append("tr")
-                .html(d => `<td>${d.region}</td><td>${d.value}</td>`);
+            const tbody = table.append("tbody");
+
+            function updateRows() {
+                const rows = tbody.selectAll("tr")
+                    .data(tableData)
+                    .join("tr")
+                    .on("mouseover", function() {
+                        d3.select(this).transition().duration(300).style("background-color", "#e8f5e9");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this).transition().duration(300).style("background-color", "");
+                    });
+
+                rows.selectAll("td")
+                    .data(d => [d.timestamp, d.central, d.west, d.east, d.north, d.south, d.national])
+                    .join("td")
+                    .text(d => d);
+            }
+
+            updateRows();
         }
 
-        // 
         d3.select("#metricSelect").on("change", function() {
             selectedMetric = this.value;
             updateVisualization();
@@ -224,7 +258,7 @@
 
         d3.select("#regionSelect").on("change", function() {
             selectedRegion = this.value;
-            updateVisualization();
+            updateLineChart();
         });
 
         d3.select("#dateSelect").on("change", function() {
@@ -232,9 +266,8 @@
             updateVisualization();
         });
 
-        // 初始更新和定期刷新
         updateVisualization();
-        setInterval(updateVisualization, 300000); // 5 MIN
+        setInterval(updateVisualization, 300000);
     </script>
 </body>
 </html>
