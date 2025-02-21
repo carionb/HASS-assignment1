@@ -1,176 +1,240 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>Interactive PSI Visualization</title>
-    <!-- Bootstrap CSS for styling -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Interactive PSI Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* Custom CSS */
-        body {
-            padding: 20px;
-            font-family: Arial, sans-serif;
-            background-color: #f8f9fa;
-        }
-
-        h2 {
-            color: #343a40;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        h4 {
-            color: #6c757d;
-            font-weight: normal;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .refresh-btn {
-            margin-bottom: 20px;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .table-container {
-            margin-top: 30px;
-            border: 1px solid #dee2e6;
-            border-radius: 0.25rem;
-            overflow: hidden;
-        }
-
-        .table {
-            margin-bottom: 0;
-        }
-
-        .table th,
-        .table td {
-            text-align: center;
-            padding: 0.75rem;
-            vertical-align: middle;
-        }
-
-        .table thead th {
-            background-color: #e9ecef;
-            border-bottom: 2px solid #dee2e6;
-        }
-
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: rgba(0, 0, 0, 0.03);
-        }
-
-        .psi-low {
-            background-color: #d4edda;
-        }
-
-        .psi-moderate {
-            background-color: #fff3cd;
-        }
-
-        .psi-high {
-            background-color: #f8d7da;
-        }
-
-        .table tbody tr:hover {
-            background-color: rgba(0, 0, 0, 0.075);
-            cursor: pointer;
-        }
-
-        .refresh-btn:hover {
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        }
-
-        /* Footer styles */
-        .footer {
-            text-align: center; /* Center the footer text */
-            margin-top: 30px; /* Add some space above the footer */
-            font-size: 16px; /* Adjust font size */
-            color: #6c757d; /* Muted color for footer */
-        }
+        body { font-family: Arial, sans-serif; background-color: #e0f7fa; padding: 20px; }
+        .container { background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { color: #2e7d32; text-align: center; margin-bottom: 20px; }
+        #map { width: 100%; height: 400px; }
+        .region { stroke: #fff; stroke-width: 1px; }
+        #chart { width: 100%; height: 300px; }
+        .line { fill: none; stroke-width: 2px; }
+        .axis { font-size: 12px; }
+        .tooltip { position: absolute; background-color: white; padding: 5px; border: 1px solid #ddd; }
+        #controls { margin-bottom: 20px; }
+        .footer { text-align: center; margin-top: 20px; font-size: 14px; color: #666; }
     </style>
 </head>
-
 <body>
-
     <div class="container">
-        <h2>Singapore PSI Visualization</h2>
-        <h4 id="timestring">Last Updated: Loading...</h4>
-        <button class="btn btn-primary refresh-btn" onclick="fetchPSIData()">Refresh Data</button>
-        
-        <div class="table-container">
-            <table class="table table-striped" id="PSItable">
-                <thead>
-                    <tr>
-                        <th>Metric</th>
-                        <th>Central</th>
-                        <th>West</th>
-                        <th>East</th>
-                        <th>North</th>
-                        <th>South</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Data will be populated here by JavaScript -->
-                </tbody>
-            </table>
+        <h1>Singapore PSI Visualization</h1>
+        <div id="controls" class="row">
+            <div class="col">
+                <label for="metricSelect">Select Metric:</label>
+                <select id="metricSelect" class="form-select">
+                    <option value="psi_twenty_four_hourly">PSI (24 Hour)</option>
+                    <option value="pm10_sub_index">PM10</option>
+                    <option value="pm25_sub_index">PM2.5</option>
+                </select>
+            </div>
+            <div class="col">
+                <label for="regionSelect">Select Region:</label>
+                <select id="regionSelect" class="form-select">
+                    <option value="all">All Regions</option>
+                    <option value="central">Central</option>
+                    <option value="west">West</option>
+                    <option value="east">East</option>
+                    <option value="north">North</option>
+                    <option value="south">South</option>
+                </select>
+            </div>
+            <div class="col">
+                <label for="dateSelect">Select Date:</label>
+                <input type="date" id="dateSelect" class="form-control">
+            </div>
         </div>
-
-        <!-- Footer with name and student ID -->
+        <div id="map"></div>
+        <div id="chart"></div>
+        <div id="data-table"></div>
         <div class="footer">
-            <p>Baorong Li - 1009456</p> 
+            <p>Baorong Li - 1009456</p>
         </div>
     </div>
 
-    <!-- D3.js library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
-        integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script>
-        // Function to fetch and display PSI data
-        async function fetchPSIData() {
-            try {
-                const response = await fetch('https://api.data.gov.sg/v1/environment/psi');
-                const data = await response.json();
+        const width = 600;
+        const height = 400;
+        const margin = {top: 20, right: 20, bottom: 30, left: 50};
+        let psiData = [];
+        let selectedMetric = "psi_twenty_four_hourly";
+        let selectedRegion = "all";
+        let selectedDate = new Date().toISOString().split('T')[0];
 
-                const timestamp = data.items[0].update_timestamp;
-                const readings = data.items[0].readings;
+        // MAP SVG
+        const mapSvg = d3.select("#map")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
 
-                // Format the timestamp
-                const formattedTimestamp = new Date(timestamp).toLocaleString();
-                d3.select("#timestring").text(`Last Updated: ${formattedTimestamp}`);
+        // CHART SVG
+        const chartSvg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
 
-                // Clear existing table rows
-                const tableBody = d3.select("#PSItable tbody");
-                tableBody.html("");
+        // COLORSCALE
+        const colorScale = d3.scaleSequential(d3.interpolateReds)
+            .domain([0, 100]);
 
-                // Loop through each reading and add rows to the table
-                Object.entries(readings).forEach(([metric, regions]) => {
-                    const row = tableBody.append("tr");
-                    row.append("td").text(metric);
+        // SG MAP
+        d3.json("https://raw.githubusercontent.com/your-github-username/singapore-map/main/singapore.json").then(data => {
+            const singapore = topojson.feature(data, data.objects.singapore);
+            
+            const projection = d3.geoMercator().fitSize([width, height], singapore);
+            const path = d3.geoPath().projection(projection);
 
-                    ["central", "west", "east", "north", "south"].forEach(region => {
-                        const value = regions[region];
-                        const cell = row.append("td").text(value);
+            mapSvg.selectAll("path")
+                .data(singapore.features)
+                .enter()
+                .append("path")
+                .attr("d", path)
+                .attr("class", "region")
+                .attr("fill", "#ccc");
+        });
 
-                        // Add color coding based on PSI value
-                        if (metric === "psi_twenty_four_hourly") {
-                            if (value >= 100) cell.classed("psi-high", true);
-                            else if (value >= 50) cell.classed("psi-moderate", true);
-                            else cell.classed("psi-low", true);
-                        }
-                    });
-                });
-            } catch (error) {
-                console.error("Error fetching PSI data:", error);
-                d3.select("#timestring").text("Failed to fetch data. Please try again.");
-            }
+        // UPDATE
+        function updateVisualization() {
+            // PSI DATA
+            d3.json(`https://api.data.gov.sg/v1/environment/psi?date=${selectedDate}`).then(data => {
+                psiData = data.items;
+                
+                // MAP
+                updateMap();
+
+                // LINE CHART
+                updateLineChart();
+
+                // DATA TABLE
+                updateDataTable();
+            });
         }
 
-        // Fetch data on page load
-        fetchPSIData();
+        // MAP
+        function updateMap() {
+            const latestData = psiData[psiData.length - 1].readings[selectedMetric];
+
+            mapSvg.selectAll(".region")
+                .transition()
+                .duration(500)
+                .attr("fill", d => {
+                    const regionName = d.properties.name.toLowerCase();
+                    return colorScale(latestData[regionName]);
+                });
+        }
+
+        // LINE CHART
+        function updateLineChart() {
+            const chartData = psiData.map(item => ({
+                timestamp: new Date(item.timestamp),
+                value: item.readings[selectedMetric][selectedRegion === "all" ? "national" : selectedRegion]
+            }));
+
+            const x = d3.scaleTime()
+                .range([margin.left, width - margin.right])
+                .domain(d3.extent(chartData, d => d.timestamp));
+
+            const y = d3.scaleLinear()
+                .range([height - margin.bottom, margin.top])
+                .domain([0, d3.max(chartData, d => d.value)]);
+
+            const line = d3.line()
+                .x(d => x(d.timestamp))
+                .y(d => y(d.value));
+
+            chartSvg.selectAll("*").remove();
+
+            chartSvg.append("path")
+                .datum(chartData)
+                .attr("class", "line")
+                .attr("d", line)
+                .attr("fill", "none")
+                .attr("stroke", "#2e7d32")
+                .attr("stroke-width", 2);
+
+            chartSvg.append("g")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(x));
+
+            chartSvg.append("g")
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(y));
+
+            // MORE INTERACTIVE
+            const tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+
+            chartSvg.selectAll("dot")
+                .data(chartData)
+                .enter().append("circle")
+                .attr("r", 5)
+                .attr("cx", d => x(d.timestamp))
+                .attr("cy", d => y(d.value))
+                .on("mouseover", (event, d) => {
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+                    tooltip.html(`Time: ${d.timestamp.toLocaleString()}<br/>Value: ${d.value}`)
+                        .style("left", (event.pageX) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", (d) => {
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                });
+        }
+
+        // DATA TABLE
+        function updateDataTable() {
+            const latestData = psiData[psiData.length - 1].readings[selectedMetric];
+            const tableData = Object.entries(latestData).map(([region, value]) => ({region, value}));
+
+            const table = d3.select("#data-table")
+                .html("")
+                .append("table")
+                .attr("class", "table table-striped");
+
+            table.append("thead").append("tr")
+                .selectAll("th")
+                .data(["Region", "Value"])
+                .enter()
+                .append("th")
+                .text(d => d);
+
+            table.append("tbody")
+                .selectAll("tr")
+                .data(tableData)
+                .enter()
+                .append("tr")
+                .html(d => `<td>${d.region}</td><td>${d.value}</td>`);
+        }
+
+        // 
+        d3.select("#metricSelect").on("change", function() {
+            selectedMetric = this.value;
+            updateVisualization();
+        });
+
+        d3.select("#regionSelect").on("change", function() {
+            selectedRegion = this.value;
+            updateVisualization();
+        });
+
+        d3.select("#dateSelect").on("change", function() {
+            selectedDate = this.value;
+            updateVisualization();
+        });
+
+        // 初始更新和定期刷新
+        updateVisualization();
+        setInterval(updateVisualization, 300000); // 5 MIN
     </script>
 </body>
-
 </html>
-
