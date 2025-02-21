@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Singapore PSI Data Visualization</title>
+<title>PSI Data Visualization</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 <style>
     body {
@@ -125,19 +125,34 @@
         cursor: pointer;
         position: relative;
         font-weight: 500;
+        transition: background-color 0.3s ease;
     }
-    th::after {
-        content: '⇅';
+    th.sorted-asc::after {
+        content: '↑';
         font-size: 12px;
         position: absolute;
         right: 5px;
         color: #fff;
     }
-    th:hover::after {
-        color: #ddd;
+    th.sorted-desc::after {
+        content: '↓';
+        font-size: 12px;
+        position: absolute;
+        right: 5px;
+        color: #fff;
+    }
+    th:hover {
+        background-color: #45a049;
     }
     tr:hover {
         background-color: #f1f1f1;
+    }
+    tr.psi-highlight {
+        background-color: #e8f5e9;
+        font-weight: bold;
+    }
+    .sorted-column {
+        background-color: #e8f5e9;
     }
     .data-info {
         width: 100%;
@@ -254,6 +269,10 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
+let currentSortColumn = null;
+let currentSortDirection = null;
+let initialOrder = null; // Store initial order of rows
+
 document.getElementById('datePicker').addEventListener('change', function() {
     fetchPSIData(this.value);
 });
@@ -283,55 +302,119 @@ function updateTable(data) {
     const tbody = document.querySelector('#PSItable tbody');
     tbody.innerHTML = '';
     let readings = data.items[0].readings;
-    
-    Object.keys(readings).forEach(metric => {
-        let row = tbody.insertRow();
-        // Format metric names with subscripts
-        const formattedMetric = metric
-            .replace(/_/g, ' ')
-            .replace(/o3/i, 'O<sub>3</sub>')
-            .replace(/pm10/i, 'PM<sub>10</sub>')
-            .replace(/pm25/i, 'PM<sub>2.5</sub>')
-            .replace(/so2/i, 'SO<sub>2</sub>')
-            .replace(/no2/i, 'NO<sub>2</sub>')
-            .toUpperCase();
-        row.insertCell().innerHTML = formattedMetric;
-        Object.keys(readings[metric]).forEach(region => {
-            const value = readings[metric][region];
-            const formattedValue = typeof value === 'number' ? value.toFixed(2) : 'N/A';
-            row.insertCell().textContent = formattedValue; // Properly format numbers or show 'N/A'
-        });
+
+    // Fixed order for metrics
+    const metricOrder = [
+        'psi_twenty_four_hourly',
+        'pm10_sub_index', 'pm10_twenty_four_hourly',
+        'pm25_sub_index', 'pm25_twenty_four_hourly',
+        'so2_sub_index', 'so2_twenty_four_hourly',
+        'o3_sub_index', 'o3_eight_hour_max',
+        'co_sub_index', 'co_eight_hour_max',
+        'no2_one_hour_max'
+    ];
+
+    metricOrder.forEach(metric => {
+        if (readings[metric]) {
+            let row = tbody.insertRow();
+            // Format metric names with subscripts
+            const formattedMetric = metric
+                .replace(/_/g, ' ')
+                .replace(/o3/i, 'O<sub>3</sub>')
+                .replace(/pm10/i, 'PM<sub>10</sub>')
+                .replace(/pm25/i, 'PM<sub>2.5</sub>')
+                .replace(/so2/i, 'SO<sub>2</sub>')
+                .replace(/no2/i, 'NO<sub>2</sub>')
+                .toUpperCase();
+            row.insertCell().innerHTML = formattedMetric;
+            Object.keys(readings[metric]).forEach(region => {
+                const value = readings[metric][region];
+                const formattedValue = typeof value === 'number' ? value.toFixed(2) : 'N/A';
+                row.insertCell().textContent = formattedValue; // Properly format numbers or show 'N/A'
+            });
+            // Highlight PSI TWENTY FOUR HOURLY row
+            if (metric === 'psi_twenty_four_hourly') {
+                row.classList.add('psi-highlight');
+            }
+        }
     });
+
+    // Store initial order of rows
+    initialOrder = Array.from(tbody.getElementsByTagName("tr"));
 }
 
 function sortTable(n) {
-    var table, rows, switching, i, x, y, shouldSwitch, dir = "asc", switchcount = 0;
-    table = document.getElementById("PSItable");
-    switching = true;
-    while (switching) {
-        switching = false;
-        rows = table.getElementsByTagName("tr");
-        for (i = 1; i < (rows.length - 1); i++) {
-            shouldSwitch = false;
-            x = rows[i].getElementsByTagName("TD")[n];
-            y = rows[i + 1].getElementsByTagName("TD")[n];
-            if ((dir == "asc" && x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) ||
-                (dir == "desc" && x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase())) {
-                shouldSwitch = true;
-                break;
-            }
-        }
-        if (shouldSwitch) {
-            rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-            switching = true;
-            switchcount++;
-        } else {
-            if (switchcount == 0 && dir == "asc") {
-                dir = "desc";
-                switching = true;
-            }
-        }
+    const table = document.getElementById("PSItable");
+    const rows = Array.from(table.getElementsByTagName("tr")).slice(1); // Skip header row
+
+    // Clear previous sorted column styles
+    document.querySelectorAll('th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+    });
+    document.querySelectorAll('td').forEach(td => {
+        td.classList.remove('sorted-column');
+    });
+
+    // Reset sorting if clicking the Metric column
+    if (n === 0) {
+        resetTable();
+        return;
     }
+
+    // Reset sorting if clicking the same column
+    if (currentSortColumn === n) {
+        if (currentSortDirection === 'asc') {
+            currentSortDirection = 'desc';
+        } else if (currentSortDirection === 'desc') {
+            currentSortColumn = null;
+            currentSortDirection = null;
+            resetTable();
+            return;
+        }
+    } else {
+        currentSortColumn = n;
+        currentSortDirection = 'asc';
+    }
+
+    // Add sorted class to the clicked header
+    const header = table.getElementsByTagName("th")[n];
+    header.classList.add(currentSortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+
+    // Sort rows
+    rows.sort((a, b) => {
+        const x = a.getElementsByTagName("TD")[n].textContent;
+        const y = b.getElementsByTagName("TD")[n].textContent;
+        const compareValue = parseFloat(x) - parseFloat(y);
+        return currentSortDirection === 'asc' ? compareValue : -compareValue;
+    });
+
+    // Highlight the sorted column
+    rows.forEach(row => {
+        row.getElementsByTagName("td")[n].classList.add('sorted-column');
+    });
+
+    // Reattach sorted rows
+    rows.forEach(row => table.tBodies[0].appendChild(row));
+}
+
+function resetTable() {
+    const table = document.getElementById("PSItable");
+    const tbody = table.tBodies[0];
+    tbody.innerHTML = ''; // Clear current rows
+
+    // Reattach rows in initial order
+    initialOrder.forEach(row => tbody.appendChild(row));
+
+    // Clear sorting indicators
+    document.querySelectorAll('th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+    });
+    document.querySelectorAll('td').forEach(td => {
+        td.classList.remove('sorted-column');
+    });
+
+    currentSortColumn = null;
+    currentSortDirection = null;
 }
 
 function toggleDataInfo() {
