@@ -8,30 +8,27 @@
     <style>
         body { 
             font-family: Arial, sans-serif; 
-            background-color: #ffffff; /* Pure white background */
-            margin: 0; 
-            padding: 0; 
-            position: relative; 
-            min-height: 100vh; 
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
+            position: relative;
+            min-height: 100vh;
         }
         #map { height: 400px; }
-        .container { 
-            padding: 20px; 
-            text-align: center; 
+        .container {
+            padding: 20px;
+            text-align: center;
         }
-        .logo-container { 
-            position: absolute; 
-            top: 10px; 
-            left: 10px; 
-            width: 80px; 
+        .logo-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 100px;
         }
-        .logo { 
-            height: 100%; 
-            width: 100%; 
-            object-fit: contain; 
-        }
-        h2 {
-            color: #2e7d32; 
+        .logo {
+            width: 100%;
+            height: auto;
+            object-fit: contain;
         }
         table {
             margin-top: 20px;
@@ -44,15 +41,16 @@
             border-bottom: 1px solid #ddd;
         }
         th {
-            background-color: #4CAF50; 
+            background-color: #4CAF50;
             color: white;
+            cursor: pointer;
         }
-        .footer { 
-            position: absolute; 
-            width: 100%; 
-            bottom: 0; 
-            text-align: center; 
-            padding: 10px 0; 
+        .footer {
+            position: absolute;
+            width: 100%;
+            bottom: 0;
+            text-align: center;
+            padding: 10px 0;
             background-color: #f4f4f4;
         }
     </style>
@@ -61,18 +59,18 @@
     <div class="logo-container">
         <img src="https://lkycic.sutd.edu.sg/wp-content/uploads/2023/03/lkycic-logo-web-2022-fc-full-1x.png" alt="College Logo" class="logo">
     </div>
-    <div class="container mt-4">
+    <div class="container">
         <h2>Singapore PSI Visualization</h2>
         <div id="map"></div>
         <table id="PSItable" class="table table-hover">
-            <thead class="table-dark">
+            <thead>
                 <tr>
-                    <th>Metric</th>
-                    <th>Central</th>
-                    <th>West</th>
-                    <th>East</th>
-                    <th>North</th>
-                    <th>South</th>
+                    <th onclick="sortTable(0)">Metric</th>
+                    <th onclick="sortTable(1)">Central</th>
+                    <th onclick="sortTable(2)">West</th>
+                    <th onclick="sortTable(3)">East</th>
+                    <th onclick="sortTable(4)">North</th>
+                    <th onclick="sortTable(5)">South</th>
                 </tr>
             </thead>
             <tbody>
@@ -96,8 +94,15 @@
             .then(response => response.json())
             .then(geoJson => {
                 L.geoJSON(geoJson, {
+                    style: function (feature) {
+                        let region = feature.properties.Name.toLowerCase();
+                        return { color: '#4CAF50', weight: 2 };
+                    },
                     onEachFeature: function (feature, layer) {
-                        layer.bindPopup(feature.properties.name); // Assuming 'name' is a property in your GeoJSON
+                        layer.bindPopup('Region: ' + feature.properties.Name);
+                        layer.on('click', function () {
+                            highlightTable(feature.properties.Name);
+                        });
                     }
                 }).addTo(map);
             });
@@ -105,11 +110,8 @@
         fetch('https://api.data.gov.sg/v1/environment/psi')
             .then(response => response.json())
             .then(data => {
-                const timestamp = data.items[0].update_timestamp;
                 const readings = data.items[0].readings;
-                
-                d3.select("#timestring").text("Last updated: " + new Date(timestamp).toLocaleString());
-                
+
                 let table = d3.select("#PSItable tbody");
                 Object.keys(readings).forEach(key => {
                     let row = table.append("tr");
@@ -119,6 +121,54 @@
                     });
                 });
             });
+
+        function sortTable(column) {
+            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            table = document.getElementById("PSItable");
+            switching = true;
+            dir = "asc";
+            while (switching) {
+                switching = false;
+                rows = table.getElementsByTagName("TR");
+                for (i = 1; i < (rows.length - 1); i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[column];
+                    y = rows[i + 1].getElementsByTagName("TD")[column];
+                    if (dir == "asc") {
+                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                            shouldSwitch= true;
+                            break;
+                        }
+                    } else if (dir == "desc") {
+                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                            shouldSwitch= true;
+                            break;
+                        }
+                    }
+                }
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    switchcount++;
+                } else {
+                    if (switchcount == 0 && dir == "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
+
+        function highlightTable(regionName) {
+            var rows = document.querySelectorAll('#PSItable tbody tr');
+            rows.forEach(row => {
+                if (row.firstChild.textContent.toLowerCase().includes(regionName.toLowerCase())) {
+                    row.style.backgroundColor = '#4CAF50'; // Highlight with a green color
+                } else {
+                    row.style.backgroundColor = ''; // Remove highlight from other rows
+                }
+            });
+        }
     </script>
 </body>
 </html>
