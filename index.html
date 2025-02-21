@@ -93,17 +93,17 @@
         const colorScale = d3.scaleSequential(d3.interpolateGreens).domain([0, 100]);
 
         // Load and display the initial data and map
-        d3.json("https://carionb.github.io/HASS-assignment1/sgmap.json").then(data => {
-            const singapore = topojson.feature(data, data.objects.sg);
-            const projection = d3.geoMercator().fitSize([width, height], singapore);
-            const path = d3.geoPath().projection(projection);
-            mapSvg.selectAll("path")
-                .data(singapore.features)
-                .enter().append("path")
-                .attr("d", path)
-                .attr("class", "region")
-                .attr("fill", d => colorScale(Math.random() * 100)); // Random coloring for demo
-        });
+       d3.json("https://raw.githubusercontent.com/carionb/HASS-assignment1/main/sgmap.json").then(data => {
+        const singapore = topojson.feature(data, data.objects.sg);  // Make sure the 'sg' is the correct object key
+        mapSvg.selectAll("path")
+            .data(singapore.features)
+            .enter().append("path")
+            .attr("d", path)
+            .attr("class", "region")
+            .attr("fill", d => colorScale(Math.random() * 100)); // Random coloring for demo purposes
+    }).catch(error => {
+        console.error('Error loading the GeoJSON data:', error);
+    });
 
         function updateVisualization() {
             document.querySelector('.loading').style.display = 'block'; // Show loading indicator
