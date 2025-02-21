@@ -13,13 +13,13 @@
         h1 { color: #2e7d32; text-align: center; margin-bottom: 20px; }
         #map { width: 100%; height: 400px; margin-bottom: 30px; }
         .region { stroke: #fff; stroke-width: 1px; }
-        #chart { width: 100%; height: 300px; margin-bottom: 30px; }
+        #chart { width: 100%; height: 300px; margin: 0 auto 50px auto; }
         .line { fill: none; stroke-width: 2px; }
         .axis { font-size: 12px; }
         .tooltip { position: absolute; background-color: white; padding: 5px; border: 1px solid #ddd; border-radius: 5px; pointer-events: none; }
         #controls { margin-bottom: 20px; }
         .footer { text-align: center; margin-top: 20px; font-size: 14px; color: #666; }
-        #data-table { margin-top: 30px; }
+        #data-table { margin-top: 50px; }
         #data-table th { background-color: #4caf50; color: white; cursor: pointer; }
         #data-table td { transition: background-color 0.3s ease; }
         #data-table tr:hover td { background-color: #e8f5e9; }
@@ -196,38 +196,66 @@
                 });
         }
 
-        function updateDataTable() {
-            const tableData = psiData.map(item => ({
-                timestamp: new Date(item.timestamp).toLocaleString(),
-                ...Object.entries(item.readings[selectedMetric]).reduce((acc, [key, value]) => {
-                    acc[key] = value;
-                    return acc;
-                }, {})
-            }));
+       function updateDataTable() {
+        const metrics = ["psi_twenty_four_hourly", "pm10_sub_index", "pm25_sub_index"];
+        const regions = ["central", "west", "east", "north", "south", "national"];
+        
+        const tableData = metrics.map(metric => {
+            const metricName = metric.replace(/_/g, ' '); // 替换下划线为空格
+            const row = { Metric: metricName };
+            regions.forEach(region => {
+                row[region.charAt(0).toUpperCase() + region.slice(1)] = psiData[psiData.length - 1].readings[metric][region];
+            });
+            return row;
+        });
 
-            const table = d3.select("#data-table")
-                .html("")
-                .append("table")
-                .attr("class", "table table-striped");
+        const table = d3.select("#data-table")
+            .html("")
+            .append("table")
+            .attr("class", "table table-striped");
 
-            const headers = ["Timestamp", "Central", "West", "East", "North", "South", "National"];
+        const headers = ["Metric", ...regions.map(r => r.charAt(0).toUpperCase() + r.slice(1))];
 
-            const thead = table.append("thead").append("tr");
-            thead.selectAll("th")
-                .data(headers)
-                .enter()
-                .append("th")
-                .text(d => d)
-                .on("click", function(event, d) {
+        const thead = table.append("thead").append("tr");
+        thead.selectAll("th")
+            .data(headers)
+            .enter()
+            .append("th")
+            .text(d => d)
+            .on("click", function(event, d) {
+                if (d !== "Metric") {
                     const isAscending = this.classList.contains("sort-asc");
                     thead.selectAll("th").classed("sort-asc", false).classed("sort-desc", false);
                     this.classList.add(isAscending ? "sort-desc" : "sort-asc");
                     
                     tableData.sort((a, b) => {
-                        return isAscending ? b[d.toLowerCase()] - a[d.toLowerCase()] : a[d.toLowerCase()] - b[d.toLowerCase()];
+                        return isAscending ? b[d] - a[d] : a[d] - b[d];
                     });
                     updateRows();
+                }
+            });
+
+        const tbody = table.append("tbody");
+
+        function updateRows() {
+            const rows = tbody.selectAll("tr")
+                .data(tableData)
+                .join("tr")
+                .on("mouseover", function() {
+                    d3.select(this).transition().duration(300).style("background-color", "#e8f5e9");
+                })
+                .on("mouseout", function() {
+                    d3.select(this).transition().duration(300).style("background-color", "");
                 });
+
+            rows.selectAll("td")
+                .data(d => Object.values(d))
+                .join("td")
+                .text(d => d);
+        }
+
+        updateRows();
+    });
 
             const tbody = table.append("tbody");
 
